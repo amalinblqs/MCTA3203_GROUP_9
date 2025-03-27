@@ -1,0 +1,100 @@
+import serial
+import time
+import matplotlib.pyplot as plt
+
+# Set up serial communication (Change COM4 to your Arduino port)
+ser = serial.Serial('COM4', 9600, timeout=1)  # Adjust COM port if needed
+time.sleep(2)  # Allow time for the serial connection to establish
+
+# Initialize data storage lists
+time_data = []
+ax_data, ay_data, az_data = [], [], []
+gx_data, gy_data, gz_data = [], [], []
+
+# Set up Matplotlib for live updating
+plt.ion()
+fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 6))
+ax1.set_title("Accelerometer Data")
+ax1.set_ylabel("Acceleration (Ax, Ay, Az)")
+ax2.set_title("Gyroscope Data")
+ax2.set_ylabel("Rotation (Gx, Gy, Gz)")
+ax2.set_xlabel("Time (frames)")
+
+line_ax, = ax1.plot([], [], 'r-', label='Ax')
+line_ay, = ax1.plot([], [], 'g-', label='Ay')
+line_az, = ax1.plot([], [], 'b-', label='Az')
+
+line_gx, = ax2.plot([], [], 'r-', label='Gx')
+line_gy, = ax2.plot([], [], 'g-', label='Gy')
+line_gz, = ax2.plot([], [], 'b-', label='Gz')
+
+ax1.legend()
+ax2.legend()
+
+# Function to update the graph
+def update_plot():
+    line_ax.set_xdata(time_data)
+    line_ax.set_ydata(ax_data)
+    line_ay.set_xdata(time_data)
+    line_ay.set_ydata(ay_data)
+    line_az.set_xdata(time_data)
+    line_az.set_ydata(az_data)
+
+    line_gx.set_xdata(time_data)
+    line_gx.set_ydata(gx_data)
+    line_gy.set_xdata(time_data)
+    line_gy.set_ydata(gy_data)
+    line_gz.set_xdata(time_data)
+    line_gz.set_ydata(gz_data)
+
+    ax1.relim()
+    ax1.autoscale_view()
+    ax2.relim()
+    ax2.autoscale_view()
+
+    plt.draw()
+    plt.pause(0.001)
+
+# Function to read data from Arduino
+def read_sensor_data():
+    if ser.in_waiting > 0:
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            print(f"Received: {line}")  # Debugging: Print raw data
+
+            if line.startswith("Ax: "):  # Ensure correct format
+                parts = line.split(" | ")
+                if len(parts) < 2:
+                    return  # Ignore invalid lines
+
+                accel_parts = parts[0].split()
+                gyro_parts = parts[1].split()
+
+                try:
+                    ax_data.append(int(accel_parts[1]))
+                    ay_data.append(int(accel_parts[3]))
+                    az_data.append(int(accel_parts[5]))
+                    gx_data.append(int(gyro_parts[1]))
+                    gy_data.append(int(gyro_parts[3]))
+                    gz_data.append(int(gyro_parts[5]))
+
+                    if len(time_data) == 0:
+                        time_data.append(0)
+                    else:
+                        time_data.append(time_data[-1] + 1)
+
+                    update_plot()
+                except ValueError:
+                    print("Warning: Non-integer data received, skipping...")
+        except Exception as e:
+            print(f"Error reading data: {e}")
+
+# Main Loop
+try:
+    while True:
+        read_sensor_data()
+except KeyboardInterrupt:
+    print("\nProgram terminated.")
+    ser.close()
+    plt.ioff()
+    plt.show()  # Show final graph after exiting
