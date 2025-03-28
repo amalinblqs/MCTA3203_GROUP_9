@@ -1,0 +1,69 @@
+import serial
+import time
+import matplotlib.pyplot as plt
+
+# Auto-detect the correct COM port (Modify 'COM4' if needed)
+PORT = 'COM4'  # Change this if necessary
+BAUD_RATE = 9600
+
+try:
+    ser = serial.Serial(PORT, BAUD_RATE, timeout=1)
+    time.sleep(2)  # Wait for connection
+    print(f"Connected to {PORT}")
+except serial.SerialException as e:
+    print(f"Error: Could not open {PORT}. Check if it's correct or in use.")
+    exit()
+
+# Initialize data lists
+time_data = []
+gesture_data = []
+
+# Set up Matplotlib with real-time updates
+plt.ion()
+fig, ax = plt.subplots(figsize=(8, 4))
+ax.set_title("Real-Time Gesture Detection")
+ax.set_xlabel("Time (frames)")
+ax.set_ylabel("Gesture Detected (1 = Right, 2 = Left)")
+ax.set_ylim(-1, 3)  # Support no gesture (0), right (1), left (2)
+
+line, = ax.plot([], [], 'ro-', markersize=5)
+
+def update_plot():
+    if len(time_data) > 100:
+        del time_data[0]
+        del gesture_data[0]
+
+    line.set_xdata(time_data)
+    line.set_ydata(gesture_data)
+
+    ax.relim()
+    ax.autoscale_view()
+
+    plt.draw()
+    plt.pause(0.01)
+
+def read_sensor_data():
+    if ser.in_waiting > 0:
+        try:
+            line = ser.readline().decode('utf-8', errors='ignore').strip()
+            print(f"Received: {line}")
+
+            if "Detected Gesture: " in line:
+                gesture = 1 if "Right" in line else 2 if "Left" in line else 0
+
+                gesture_data.append(gesture)
+                time_data.append(time_data[-1] + 1 if time_data else 0)
+
+                update_plot()
+        except Exception as e:
+            print(f"Error reading data: {e}")
+
+# Run the program
+try:
+    while True:
+        read_sensor_data()
+except KeyboardInterrupt:
+    print("\nClosing program...")
+    ser.close()
+    plt.ioff()
+    plt.show()
